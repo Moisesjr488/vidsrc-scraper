@@ -99,27 +99,24 @@ async function scrapeProvider(domain, url) {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
     console.log(`[${domain}] Page loaded`);
 
-    const frameDiv = await page.waitForSelector("#the_frame", {
-      timeout: 10000,
+    // FIX: Buscamos cualquier iframe en lugar de un ID específico
+    const frameElement = await page.waitForSelector("iframe", {
+      timeout: 15000,
     });
 
-    if (frameDiv) {
-      const box = await frameDiv.boundingBox();
-
-      if (box) {
-        const clickX = box.x + box.width / 2;
-        const clickY = box.y + box.height / 2;
-        console.log(
-          `[${domain}] Clicking at (${clickX.toFixed(1)}, ${clickY.toFixed(1)})`
-        );
-
-        await page.mouse.move(clickX, clickY);
-        await page.mouse.click(clickX, clickY);
-      } else {
-        console.warn(`[${domain}] Fallback: clicking via JS`);
-        await page.evaluate(() => {
-          document.querySelector("#the_frame")?.click();
-        });
+    if (frameElement) {
+      console.log(`[${domain}] Iframe found, interacting...`);
+      
+      // Intentar interactuar con el contenido del iframe
+      try {
+        const frame = await frameElement.contentFrame();
+        if (frame) {
+            await frame.click('body').catch(() => {});
+        } else {
+            await frameElement.click().catch(() => {});
+        }
+      } catch (e) {
+        await frameElement.click().catch(() => {});
       }
 
       // Give time for network requests (especially subtitle .vtt)
@@ -142,7 +139,7 @@ async function scrapeProvider(domain, url) {
         await page.waitForTimeout(5000);
       }
     } else {
-      throw new Error(`#the_frame div not found`);
+      throw new Error(`No iframe found on page`);
     }
 
     await page.close();
